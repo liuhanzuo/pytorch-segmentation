@@ -1,12 +1,12 @@
 {
-    "name": "PSPNet",
+    "name": "PSPNet-resnet152-CityScapes",
     "n_gpu": 1,
     "use_synch_bn": false,
 
     "arch": {
         "type": "PSPNet",
         "args": {
-            "backbone": "resnet50",
+            "backbone": "resnet152",
             "freeze_bn": false,
             "freeze_backbone": false
         }
@@ -15,7 +15,7 @@
     "train_loader": {
         "type": "CityScapes",
         "args":{
-            "data_dir": "./data/cityscapes",
+            "data_dir": "D:/CV/data/cityscapes",
             "batch_size": 8,
             "base_size": 400,
             "crop_size": 380,
@@ -33,8 +33,8 @@
     "val_loader": {
         "type": "CityScapes",
         "args":{
-            "data_dir": "./data/cityscapes",
-            "batch_size": 8,
+            "data_dir": "D:/CV/data/cityscapes",
+            "batch_size": 16,
             "crop_size": 480,
             "val": true,
             "split": "val",
@@ -46,21 +46,24 @@
         "type": "SGD",
         "differential_lr": true,
         "args":{
-            "lr": 0.01,
-            "weight_decay": 1e-4,
+            "lr": 1e-2,
+            "weight_decay": 5e-5,
             "momentum": 0.9
         }
     },
 
-    "loss": "CrossEntropyLoss2d",
+    "loss": "HybridLoss",
     "ignore_index": 255,
     "lr_scheduler": {
-        "type": "Poly",
-        "args": {}
+        "type": "CosineWithMinLR",
+        "args": {
+            "warmup_epochs": 5,
+            "min_lr": 5e-5
+        }
     },
 
     "trainer": {
-        "epochs": 80,
+        "epochs": 60,
         "save_dir": "saved/",
         "save_period": 10,
   

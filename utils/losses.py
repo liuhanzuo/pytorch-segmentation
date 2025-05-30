@@ -37,6 +37,8 @@ class DiceLoss(nn.Module):
         self.smooth = smooth
 
     def forward(self, output, target):
+        target = target.clone().detach()
+        
         if self.ignore_index not in range(target.min(), target.max()):
             if (target == self.ignore_index).sum() > 0:
                 target[target == self.ignore_index] = target.min()
@@ -57,6 +59,7 @@ class FocalLoss(nn.Module):
         self.CE_loss = nn.CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
 
     def forward(self, output, target):
+        target = target.clone().detach()
         logpt = self.CE_loss(output, target)
         pt = torch.exp(-logpt)
         loss = ((1-pt)**self.gamma) * logpt
@@ -87,3 +90,56 @@ class LovaszSoftmax(nn.Module):
         logits = F.softmax(output, dim=1)
         loss = lovasz_softmax(logits, target, ignore=self.ignore_index)
         return loss
+    
+class HybridLoss(nn.Module):
+    def __init__(self, 
+                 ignore_index=255, 
+                 focal_weight=None, 
+                 focal_gamma=2.0,
+                 lovasz_classes='present',
+                 dice_smooth=1.0,
+                 weights=[0.5, 0.3, 0.2]):
+        super().__init__()
+        self.ignore_index = ignore_index
+        
+        self.focal = FocalLoss(gamma=focal_gamma, 
+                             alpha=focal_weight,
+                             ignore_index=ignore_index)
+        
+        self.lovasz = LovaszSoftmax(classes=lovasz_classes,
+                                  ignore_index=ignore_index)
+        
+        self.dice = DiceLoss(smooth=dice_smooth,
+                            ignore_index=ignore_index)
+        
+        assert len(weights) == 3, "weights need three keywords[focal, lovasz, dice]"
+        self.weights = weights
+
+    def forward(self, output, target):
+
+        focal_loss = self.focal(output, target)
+        lovasz_loss = self.lovasz(output, target)
+        dice_loss = self.dice(output, target)
+        
+        total_loss = (self.weights[0] * focal_loss + 
+                     self.weights[1] * lovasz_loss + 
+                     self.weights[2] * dice_loss)
+        
+        return total_loss
+
+    @staticmethod
+    def calculate_class_weights(dataloader, n_classes):
+        """计算类别权重（示例方法）"""
+        class_counts = torch.zeros(n_classes)
+        for _, labels in dataloader:
+            mask = (labels != 255)  # 忽略255
+            hist = torch.histc(labels[mask].float(), 
+                              bins=n_classes, 
+                              min=0, 
+                              max=n_classes-1)
+            class_counts += hist
+        
+        weights = 1.0 / (class_counts + 1e-6)  
+        weights /= weights.sum()  
+        
+        return weights.cuda()

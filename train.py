@@ -28,6 +28,7 @@ def main(config, resume):
 
     # LOSS
     loss = getattr(losses, config['loss'])(ignore_index = config['ignore_index'])
+    torch.autograd.set_detect_anomaly(True)  
 
     # TRAINING
     trainer = Trainer(

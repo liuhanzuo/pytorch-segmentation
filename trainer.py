@@ -8,7 +8,7 @@ from base import BaseTrainer, DataPrefetcher
 from utils.helpers import colorize_mask
 from utils.metrics import eval_metrics, AverageMeter
 from tqdm import tqdm
-
+from utils.lr_scheduler import CosineWithMinLR
 class Trainer(BaseTrainer):
     def __init__(self, model, loss, resume, config, train_loader, val_loader=None, train_logger=None, prefetch=True):
         super(Trainer, self).__init__(model, loss, resume, config, train_loader, val_loader, train_logger)
@@ -31,6 +31,13 @@ class Trainer(BaseTrainer):
         if prefetch:
             self.train_loader = DataPrefetcher(train_loader, device=self.device)
             self.val_loader = DataPrefetcher(val_loader, device=self.device)
+        # self.lr_scheduler = CosineWithMinLR(
+        #     self.optimizer,
+        #     num_epochs=config['trainer'].get('epochs', 80),
+        #     iters_per_epoch=len(train_loader),
+        #     warmup_epochs=config['lr_scheduler']['args'].get('warmup_epochs', 5),
+        #     min_lr=1e-4
+        # )
 
         torch.backends.cudnn.benchmark = True
 
@@ -42,14 +49,12 @@ class Trainer(BaseTrainer):
             if isinstance(self.model, torch.nn.DataParallel): self.model.module.freeze_bn()
             else: self.model.freeze_bn()
         self.wrt_mode = 'train'
-
         tic = time.time()
         self._reset_metrics()
         tbar = tqdm(self.train_loader, ncols=130)
         for batch_idx, (data, target) in enumerate(tbar):
             self.data_time.update(time.time() - tic)
-            #data, target = data.to(self.device), target.to(self.device)
-            self.lr_scheduler.step(epoch=epoch-1)
+            # data, target = data.to(self.device), target.to(self.device)
 
             # LOSS & OPTIMIZE
             self.optimizer.zero_grad()
@@ -70,7 +75,6 @@ class Trainer(BaseTrainer):
             loss.backward()
             self.optimizer.step()
             self.total_loss.update(loss.item())
-
             # measure elapsed time
             self.batch_time.update(time.time() - tic)
             tic = time.time()
@@ -86,11 +90,11 @@ class Trainer(BaseTrainer):
             pixAcc, mIoU, _ = self._get_seg_metrics().values()
             
             # PRINT INFO
-            tbar.set_description('TRAIN ({}) | Loss: {:.3f} | Acc {:.2f} mIoU {:.2f} | B {:.2f} D {:.2f} |'.format(
+            tbar.set_description('TRAIN ({}) | Loss: {:.3f} | Acc {:.2f} mIoU {:.2f} | B {:.2f} D {:.2f} | lr {:.3f}'.format(
                                                 epoch, self.total_loss.average, 
                                                 pixAcc, mIoU,
-                                                self.batch_time.average, self.data_time.average))
-
+                                                self.batch_time.average, self.data_time.average,
+                                                self.lr_scheduler.get_last_lr()[0]))
         # METRICS TO TENSORBOARD
         seg_metrics = self._get_seg_metrics()
         for k, v in list(seg_metrics.items())[:-1]: 
@@ -103,7 +107,9 @@ class Trainer(BaseTrainer):
         log = {'loss': self.total_loss.average,
                 **seg_metrics}
 
-        #if self.lr_scheduler is not None: self.lr_scheduler.step()
+        if self.lr_scheduler is not None: 
+            self.lr_scheduler.step()
+            print(f'Learning rate: {self.lr_scheduler.get_last_lr()[0]}')
         return log
 
     def _valid_epoch(self, epoch):

@@ -57,6 +57,33 @@ class OneCycle(_LRScheduler):
             self.optimizer.param_groups[i]['momentum'] = self.momentums[1] - self.mom_diff * cos_anneling
         return [final_lr + (base_lr - final_lr) * cos_anneling 
             for base_lr, final_lr in zip(self.base_lrs, self.final_lrs)]
+import math
+from torch.optim.lr_scheduler import _LRScheduler
+
+class CosineWithMinLR(_LRScheduler):
+    def __init__(self, optimizer, num_epochs, iters_per_epoch=0, 
+                 warmup_epochs=0, min_lr=1e-4, last_epoch=-1):
+        self.iters_per_epoch = iters_per_epoch
+        self.cur_iter = 0
+        self.N = num_epochs * iters_per_epoch
+        self.warmup_iters = warmup_epochs * iters_per_epoch
+        self.min_lr = min_lr
+        super(CosineWithMinLR, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        T = self.last_epoch * self.iters_per_epoch + self.cur_iter
+ 
+        if self.warmup_iters > 0 and T < self.warmup_iters:
+            factor = T / self.warmup_iters
+
+        else:
+            progress = min(max((T - self.warmup_iters) / (self.N - self.warmup_iters), 0), 1)
+            factor = (1 + math.cos(math.pi * progress)) / 2  
+            factor = max(factor, self.min_lr / self.base_lrs[0]) 
+        
+        self.cur_iter %= self.iters_per_epoch
+        self.cur_iter += 1
+        return [max(base_lr * factor, self.min_lr) for base_lr in self.base_lrs]
 
 
 if __name__ == "__main__":

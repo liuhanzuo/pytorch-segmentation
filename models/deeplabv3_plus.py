@@ -207,7 +207,8 @@ class Xception(nn.Module):
         x = self.bn2(x)
         x = self.block1(x)
         low_level_features = x
-        x = F.relu(x)
+        x = F.leaky_relu(x, 0.0)
+        # x = nn.ReLU()(x)
         x = self.block2(x)
         x = self.block3(x)
 
@@ -351,7 +352,13 @@ class DeepLab(BaseModel):
 
         if freeze_bn: self.freeze_bn()
         if freeze_backbone: 
-            set_trainable([self.backbone], False)
+            self.set_trainable([self.backbone], False)
+    
+    @staticmethod
+    def set_trainable(modules, requires_grad):
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = requires_grad
 
     def forward(self, x):
         H, W = x.size(2), x.size(3)
