@@ -15,7 +15,7 @@ def get_instance(module, name, config, *args):
     # GET THE CORRESPONDING CLASS / FCT 
     return getattr(module, config[name]['type'])(*args, **config[name]['args'])
 
-def main(config, resume):
+def main(config, resume, cross_validation=False):
     train_logger = Logger()
 
     # DATA LOADERS
@@ -31,16 +31,22 @@ def main(config, resume):
     torch.autograd.set_detect_anomaly(True)  
 
     # TRAINING
-    trainer = Trainer(
-        model=model,
-        loss=loss,
-        resume=resume,
-        config=config,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        train_logger=train_logger)
+    if cross_validation:
+        # CROSS VALIDATION
+        from trainer import CrossValidationTrainer
+        cv = CrossValidationTrainer(model, loss, config, train_loader, val_loader, train_logger)
+        cv.run()
+    else:
+        trainer = Trainer(
+            model=model,
+            loss=loss,
+            resume=resume,
+            config=config,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            train_logger=train_logger)
 
-    trainer.train()
+        trainer.train()
 
 if __name__=='__main__':
     # PARSE THE ARGS
@@ -51,6 +57,8 @@ if __name__=='__main__':
                         help='Path to the .pth model checkpoint to resume training')
     parser.add_argument('-d', '--device', default=None, type=str,
                            help='indices of GPUs to enable (default: all)')
+    parser.add_argument('-t', "--cross_validation", default=False, type=bool, 
+                        help='Run cross-validation (default: False)')
     args = parser.parse_args()
 
     config = json.load(open(args.config))
@@ -59,4 +67,4 @@ if __name__=='__main__':
     if args.device:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.device
     
-    main(config, args.resume)
+    main(config, args.resume, args.cross_validation)

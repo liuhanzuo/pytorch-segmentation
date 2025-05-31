@@ -83,3 +83,80 @@ class CityScapes(BaseDataLoader):
         super(CityScapes, self).__init__(self.dataset, batch_size, shuffle, num_workers, val_split)
 
 
+class CrossCityScapesDataset(BaseDataSet):
+    def __init__(self, mode='fine', **kwargs):
+        self.num_classes = 19
+        self.mode = mode
+        self.palette = palette.CityScpates_palette
+        self.id_to_trainId = ID_TO_TRAINID
+        super(CrossCityScapesDataset, self).__init__(**kwargs)
+
+    def _set_files(self):
+        assert (self.mode == 'fine' and self.split in ['train', 'val']) or \
+        (self.mode == 'coarse' and self.split in ['train', 'train_extra', 'val'])
+
+        SUFIX = '_gtFine_labelIds.png'
+        if self.mode == 'coarse':
+            img_dir_name = 'leftImg8bit_trainextra' if self.split == 'train_extra' else 'leftImg8bit_trainvaltest'
+            label_path = os.path.join(self.root, 'gtCoarse', 'gtCoarse', self.split)
+        else:
+            img_dir_name = 'leftImg8bit_trainvaltest'
+            label_path = os.path.join(self.root, 'gtFine_trainvaltest', 'gtFine', self.split)
+        image_path = os.path.join(self.root, img_dir_name, 'leftImg8bit', self.split)
+        assert os.listdir(image_path) == os.listdir(label_path)
+
+        image_paths, label_paths = [], []
+        for city in os.listdir(image_path):
+            image_paths.extend(sorted(glob(os.path.join(image_path, city, '*.png'))))
+            label_paths.extend(sorted(glob(os.path.join(label_path, city, f'*{SUFIX}'))))
+        self.files = list(zip(image_paths, label_paths))
+    def setup_folds(self, num_folds: int):
+        self.num_folds = num_folds
+        self.fold_indices = list(KFold(num_folds, shuffle=True, random_state=42).split(range(len(self.files))))
+    
+    def set_fold(self, fold_idx: int, mode: str = 'train'):
+        assert mode in ['train', 'val']
+        assert 0 <= fold_idx < self.num_folds
+        
+        train_indices, val_indices = self.fold_indices[fold_idx]
+        if mode == 'train':
+            self.indices = train_indices
+        else:
+            self.indices = val_indices
+    
+    def __len__(self):
+        return len(self.indices) if hasattr(self, 'indices') else len(self.files)
+    
+    def _load_data(self, index):
+        actual_index = self.indices[index] if hasattr(self, 'indices') else index
+        image_path, label_path = self.files[actual_index]
+        # image_path, label_path = self.files[index]
+        image_id = os.path.splitext(os.path.basename(image_path))[0]
+        image = np.asarray(Image.open(image_path).convert('RGB'), dtype=np.float32)
+        label = np.asarray(Image.open(label_path), dtype=np.int32)
+        for k, v in self.id_to_trainId.items():
+            label[label == k] = v
+        return image, label, image_id
+
+
+
+class CrossCityScapes(BaseDataLoader):
+    def __init__(self, data_dir, batch_size, split, fold_idx=0, num_folds=5, mode='train', **kwargs):
+        
+        self.fold_idx = fold_idx
+        self.num_folds = num_folds
+        self.mode = mode 
+        
+        kwargs['mode'] = mode  
+        self.dataset = CityScapesDataset(mode=mode, **kwargs)
+        
+        if num_folds > 1:
+            self.dataset.setup_folds(num_folds)
+            self.dataset.set_fold(fold_idx, mode)
+        
+        super(CityScapes, self).__init__(
+            self.dataset, batch_size, 
+            shuffle=(mode=='train'), 
+            num_workers=num_workers, 
+            val_split=None  
+        )
