@@ -1,10 +1,10 @@
 {
-    "name": "PSPNet-resnet152-CityScapes",
+    "name": "SCTNet-resnet152-CityScapes",
     "n_gpu": 1,
     "use_synch_bn": false,
 
     "arch": {
-        "type": "PSPNet",
+        "type": "SCTNet",
         "args": {
             "backbone": "resnet152",
             "freeze_bn": false,
@@ -15,8 +15,8 @@
     "train_loader": {
         "type": "CityScapes",
         "args":{
-            "data_dir": "D:/CV/data/cityscapes",
-            "batch_size": 8,
+            "data_dir": "/root/autodl-tmp/data/cityscapes",
+            "batch_size": 32,
             "base_size": 400,
             "crop_size": 380,
             "augment": true,
@@ -33,8 +33,8 @@
     "val_loader": {
         "type": "CityScapes",
         "args":{
-            "data_dir": "D:/CV/data/cityscapes",
-            "batch_size": 16,
+            "data_dir": "/root/autodl-tmp/data/cityscapes",
+            "batch_size": 32,
             "crop_size": 480,
             "val": true,
             "split": "val",
@@ -47,7 +47,7 @@
         "differential_lr": true,
         "args":{
             "lr": 1e-2,
-            "weight_decay": 5e-5,
+            "weight_decay": 5e-6,
             "momentum": 0.9
         }
     },
@@ -57,13 +57,13 @@
     "lr_scheduler": {
         "type": "CosineWithMinLR",
         "args": {
-            "warmup_epochs": 5,
+            "warmup_epochs": 10,
             "min_lr": 5e-5
         }
     },
 
     "trainer": {
-        "epochs": 60,
+        "epochs": 100,
         "save_dir": "saved/",
         "save_period": 10,
   
