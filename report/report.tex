@@ -1,0 +1,133 @@
+% Modified based on Xiaoming Sun's template and https://www.overleaf.com/latex/templates/cs6780-assignment-template/hgjyygbykvrf
+
+\documentclass[a4 paper,12pt]{article}
+\usepackage[inner=2.0cm,outer=2.0cm,top=2.0cm,bottom=2.0cm]{geometry}
+\linespread{1.1}
+\usepackage{setspace}
+\usepackage[rgb]{xcolor}
+\usepackage{verbatim}
+\usepackage{subcaption}
+\usepackage{fancyhdr}
+\usepackage{fullpage}
+\usepackage[colorlinks=true, urlcolor=blue, linkcolor=blue, citecolor=blue]{hyperref}
+\usepackage{booktabs}
+\usepackage{amsmath,amsfonts,amsthm,amssymb}
+\usepackage[shortlabels]{enumitem}
+\usepackage{setspace}
+\usepackage{extramarks}
+\usepackage{soul,color}
+\usepackage{graphicx,float,wrapfig}
+\newenvironment{breakablealgorithm}
+  {% \begin{breakablealgorithm}
+   \begin{center}
+     \refstepcounter{algorithm}% New algorithm
+     \hrule height.8pt depth0pt \kern2pt% \@fs@pre for \@fs@ruled
+     \renewcommand{\caption}[2][\relax]{% Make a new \caption
+       {\raggedright\textbf{\ALG@name~\thealgorithm} ##2\par}%
+       \ifx\relax##1\relax % #1 is \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##2}%
+       \else % #1 is not \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##1}%
+       \fi
+       \kern2pt\hrule\kern2pt
+     }
+  }{% \end{breakablealgorithm}
+     \kern2pt\hrule\relax%
+   \end{center}
+  }
+\makeatother
+\newtheoremstyle{definitionstyle}
+  {3pt} % Space above
+  {3pt} % Space below
+  {\normalfont} % Body font
+  {} % Indent amount
+  {\bfseries} % Theorem head font
+  {} % Punctuation after theorem head
+  { } % Space after theorem head
+  {} % Theorem head spec (can be left empty, meaning `normal`)
+
+\theoremstyle{definitionstyle}
+\newtheorem{defn}{Definition}
+\newtheorem{thm}{Theorem}
+\newtheorem{lem}{Lemma}
+\newtheorem{statement}{Statement}
+% \newtheorem{proof}{Proof}
+\usepackage{framed}
+\newenvironment{framedminipage}
+    {\begin{framed}\begin{minipage}{0.9\textwidth}}
+    {\end{minipage}\end{framed}}
+\newcommand{\homework}[3]{
+	\pagestyle{myheadings}
+	\thispagestyle{plain}
+	\newpage
+	\setcounter{page}{1}
+	\noindent
+	\begin{center}
+		\framebox{
+			\vbox{\vspace{2mm}
+				\hbox to 6.28in { {\bf Computer Vision \hfill} {\hfill {\rm #2} {\rm #3}} }
+				\vspace{4mm}
+				\hbox to 6.28in { {\Large \hfill #1  \hfill} }
+				\vspace{3mm}}
+		}
+	\end{center}
+	\vspace*{4mm}
+}
+\newcommand\numberthis{\addtocounter{equation}{1}\tag{\theequation}}
+
+\begin{document}
+\homework{HW4}{2024011303}{Liu Hanzuo}
+\begin{center}
+  \textbf{Project Repository:} \\
+  \href{https://github.com/liuhanzuo/pytorch-segmentation}{\texttt{https://github.com/liuhanzuo/pytorch-segmentation}}
+\end{center}
+\section*{Introduction}
+In this homework, I mainly implement PSPNet and SCTNet for semantic segmentation tasks. The dataset used is the Cityscapes dataset, which contains 5000 high-resolution images with pixel-level annotations for 19 classes. I run my codes on three different nets: DeepLab, PSPNet, and SCTNet. The results show that the performance of SCTNet is better than that of DeepLab and PSPNet, which is consistent with the paper's conclusion.
+\section*{Methodology}
+\paragraph{PSPNet}
+PSPNet (Pyramid Scene Parsing Network) uses a pyramid pooling module to capture multi-scale context information. The pyramid pooling module divides the feature map into different regions and applies average pooling to each region, which allows the network to capture both local and global context information. The output of the pyramid pooling module is then concatenated with the original feature map and passed through a series of convolutional layers to produce the final segmentation map.
+\paragraph{DeepLab}
+DeepLab uses atrous convolution to capture multi-scale context information. Atrous convolution allows the network to control the resolution of the feature map and capture features at different scales. DeepLab also uses a conditional random field (CRF) to refine the segmentation results by considering the spatial relationships between pixels.
+\paragraph{SCTNet}
+SCTNet (Semantic Context Transformer Network) is a transformer-based network that captures long-range dependencies and global context information. It uses a self-attention mechanism to model the relationships between pixels in the feature map, allowing the network to capture both local and global context information. SCTNet also uses a multi-scale feature fusion module to combine features from different scales, which improves the segmentation performance.
+\paragraph{Backbone}
+I tested my result with the same backbone -- resnet-152, which is the largest model in resnet series. I also tried Resnext series,  but does not work well for mIOU. In resnet series, we can find out that a deeper model results in a better performance, which meets the conclusion of scaling law.
+\paragraph{Cross Validation}
+I add a parser argument in trainig codes to control whether add a cross validation. If the argument is set to true, the training codes will split the dataset into 5 folds and train the model on each fold. The final mIOU will be the average of the mIOU of each fold. The cross validation can help to reduce overfitting and improve the generalization ability of the model.
+\section*{Results}
+Note that the results are trained on an L20 GPU with 96G memory with training batch size of 32 and validation training size of 32. The training epoch is set to 100 and has a warming up of 10 epochs. The learning rate is set to 0.01 and decayed to 5e-5 with a cosine annealing scheduler. The training time is about 4 hours for each model. 
+The results are shown in Table \ref{tab:results}.
+\begin{table}[H]
+  \centering
+  \caption{Experimental Results on Cityscapes Validation Set}
+  \label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Model} & \textbf{mIOU (\%)} & \textbf{Pixel Accuracy (\%)} \\
+    \midrule
+    DeepLab   & 58.2 & 93.2 \\
+    PSPNet    & 61.2 & 93.3 \\
+    SCTNet    & 65.3 & 93.2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+Also, some ablation studeis are also applied to the backbone model, the base model are all setted to DeepLab. We change the backbone to resnet-152, resnet-101, and resnet-50, and the results are shown in Table \ref{tab:results2}. The results show that the performance of resnet-152 is better than that of resnet-101 and resnet-50, which is consistent with the conclusion of scaling law.
+\begin{table}[H]
+  \centering
+  \caption{Experimental Results on Cityscapes Validation Set}
+  \label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Backbone} & \textbf{mIOU (\%)} & \textbf{Pixel Accuracy (\%)} \\
+    \midrule
+    resnet152   & 58.2 & 93.2 \\
+    resnet101   & 56.8 & 93.3 \\
+    resnet50    & 56.5 & 93.4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\paragraph{Notes}
+Due to the limitation of submission zip file size, I only upload the PSPNet+resnet152 model as the result, please view \texttt{README.md} for more details.
+\section*{Acknowledgements}
+I would like to thank the authors of the \href{https://github.com/yassouali/pytorch-segmentation}{pytorch-segmentation} codebase for providing an excellent foundation and reference implementation, which greatly facilitated the development of this project.
+\end{document}
